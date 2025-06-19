@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Optional: Keep base font settings or body background if desired, otherwise remove */
+/* For now, keeping it minimal as per instructions */
+
+/*
+  If you want to set a global font or background, you can do it here, for example:
+  body {
+    font-family: var(--font-geist-sans); // If using Geist font as configured by default
+    background-color: #f0f2f5;
+  }
+*/
