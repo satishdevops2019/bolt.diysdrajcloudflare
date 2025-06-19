@@ -180,15 +180,100 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/listings/ - Get all listings (Public Route)
-router.get('/', async (req, res) => {
+// GET /api/listings/ - Get all listings (Public Route) with filtering
+router.get('/', async (req, res, next) => { // Added next for global error handling
   try {
-    const query = 'SELECT * FROM Listings ORDER BY created_at DESC;'; // Optional: Order by creation date
-    const result = await pool.query(query);
+    let baseQuery = 'SELECT * FROM Listings';
+    const conditions = [];
+    const queryParams = [];
+    let paramIndex = 1;
+
+    const {
+      minPrice, maxPrice, propertyType,
+      numBedrooms, numBathrooms, numBeds, amenities
+    } = req.query;
+
+    if (minPrice) {
+      const price = parseFloat(minPrice);
+      if (!isNaN(price)) {
+        conditions.push(`price_per_night >= $${paramIndex++}`);
+        queryParams.push(price);
+      } else {
+        return res.status(400).json({ message: 'Invalid minPrice format.' });
+      }
+    }
+    if (maxPrice) {
+      const price = parseFloat(maxPrice);
+      if (!isNaN(price)) {
+        conditions.push(`price_per_night <= $${paramIndex++}`);
+        queryParams.push(price);
+      } else {
+        return res.status(400).json({ message: 'Invalid maxPrice format.' });
+      }
+    }
+    if (propertyType) {
+      conditions.push(`LOWER(property_type) = LOWER($${paramIndex++})`); // Case-insensitive
+      queryParams.push(propertyType);
+    }
+    if (numBedrooms) {
+      const bedrooms = parseInt(numBedrooms, 10);
+      if(!isNaN(bedrooms)) {
+        conditions.push(`num_bedrooms >= $${paramIndex++}`);
+        queryParams.push(bedrooms);
+      } else {
+        return res.status(400).json({ message: 'Invalid numBedrooms format.' });
+      }
+    }
+    if (numBathrooms) {
+      const bathrooms = parseFloat(numBathrooms);
+       if(!isNaN(bathrooms)) {
+        conditions.push(`num_bathrooms >= $${paramIndex++}`);
+        queryParams.push(bathrooms);
+      } else {
+        return res.status(400).json({ message: 'Invalid numBathrooms format.' });
+      }
+    }
+    if (numBeds) {
+      const beds = parseInt(numBeds, 10);
+      if(!isNaN(beds)) {
+        conditions.push(`num_beds >= $${paramIndex++}`);
+        queryParams.push(beds);
+      } else {
+        return res.status(400).json({ message: 'Invalid numBeds format.' });
+      }
+    }
+    if (amenities) {
+      const amenitiesArray = amenities.split(',').map(a => a.trim().toLowerCase()).filter(a => a); // Normalize to lowercase
+      if (amenitiesArray.length > 0) {
+        // To check if the stored TEXT[] amenities contains all specified amenities,
+        // we need to ensure each element of amenitiesArray is present in the DB array.
+        // PostgreSQL's TEXT[] @> TEXT[] checks if the left array contains all elements of the right array.
+        // We also convert DB amenities to lowercase for case-insensitive comparison if needed,
+        // or ensure data is stored consistently. For this example, assume consistent casing or handle it at insertion.
+        // If amenities in DB are 'WiFi', 'Kitchen' and query is 'wifi,kitchen', direct @> might fail.
+        // A more robust way for case-insensitive array containment might involve unnesting or specific functions
+        // or ensuring all amenities are stored in a canonical form (e.g. lowercase).
+        // For simplicity here, we'll use @> and assume client sends amenities in canonical (lowercase) form matching DB.
+        // Or, more practically, ensure your DB stores amenities in a consistent case (e.g., all lowercase).
+        // Let's assume for now that the client will send amenities in the exact case as stored or we handle it at insertion.
+        // A common approach is to lowercase all amenities before storing and before querying.
+        // For the query itself:
+        conditions.push(`amenities @> $${paramIndex++}`); // Assumes amenities in DB and query are consistently cased.
+        queryParams.push(amenitiesArray);
+      }
+    }
+
+    if (conditions.length > 0) {
+      baseQuery += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    baseQuery += ' ORDER BY created_at DESC;';
+
+    const result = await pool.query(baseQuery, queryParams);
     res.status(200).json(result.rows);
   } catch (error) {
-    console.error('Error fetching listings:', error);
-    res.status(500).json({ message: 'Server error while fetching listings.' });
+    console.error('Error fetching listings with filters:', error);
+    next(error); // Pass to global error handler
   }
 });
 

@@ -1,5 +1,5 @@
 -- Users Table
-CREATE TABLE Users (
+CREATE TABLE IF NOT EXISTS Users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE Users (
 );
 
 -- Listings Table
-CREATE TABLE Listings (
+CREATE TABLE IF NOT EXISTS Listings (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES Users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -27,14 +27,14 @@ CREATE TABLE Listings (
     num_bedrooms INTEGER NOT NULL,
     num_beds INTEGER NOT NULL,
     num_bathrooms DECIMAL(3,1) NOT NULL,
-    amenities TEXT[],
-    property_type VARCHAR(100),
+    amenities TEXT[], -- Array of text strings for amenities
+    property_type VARCHAR(100), -- e.g., 'House', 'Apartment', 'Condo', 'Private Room'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Bookings Table
-CREATE TABLE Bookings (
+CREATE TABLE IF NOT EXISTS Bookings (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES Users(id) ON DELETE CASCADE,
     listing_id INTEGER REFERENCES Listings(id) ON DELETE CASCADE,
@@ -42,14 +42,14 @@ CREATE TABLE Bookings (
     check_out_date DATE NOT NULL,
     num_guests INTEGER NOT NULL,
     total_price DECIMAL(10,2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending', -- e.g., pending, confirmed, cancelled
+    status VARCHAR(50) DEFAULT 'pending', -- e.g., pending, confirmed, cancelled, completed
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_dates CHECK (check_out_date > check_in_date)
 );
 
 -- Reviews Table
-CREATE TABLE Reviews (
+CREATE TABLE IF NOT EXISTS Reviews (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES Users(id) ON DELETE CASCADE,
     listing_id INTEGER REFERENCES Listings(id) ON DELETE CASCADE,
@@ -58,5 +58,14 @@ CREATE TABLE Reviews (
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (user_id, listing_id, booking_id) -- Ensures a user can't review the same booking multiple times, though booking_id UNIQUE already handles this.
+    CONSTRAINT unique_review_per_booking UNIQUE (user_id, listing_id, booking_id) -- Ensures a user can't review the same booking multiple times (booking_id UNIQUE already handles this mostly)
 );
+
+-- Potential Indexes for Listings table for filtering performance
+-- (Add these as comments for now, can be uncommented and run by user in their DB)
+-- CREATE INDEX IF NOT EXISTS idx_listings_price ON Listings (price_per_night);
+-- CREATE INDEX IF NOT EXISTS idx_listings_property_type ON Listings (LOWER(property_type)); -- For case-insensitive search
+-- CREATE INDEX IF NOT EXISTS idx_listings_num_bedrooms ON Listings (num_bedrooms);
+-- CREATE INDEX IF NOT EXISTS idx_listings_num_bathrooms ON Listings (num_bathrooms);
+-- CREATE INDEX IF NOT EXISTS idx_listings_num_beds ON Listings (num_beds);
+-- CREATE INDEX IF NOT EXISTS idx_listings_amenities ON Listings USING GIN (amenities); -- GIN index for array containment operations
